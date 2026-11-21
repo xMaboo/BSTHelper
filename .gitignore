@@ -1,0 +1,19 @@
+# Build artifacts
+bin/
+obj/
+*.user
+*.suo
+*.nuget.props
+*.nuget.targets
+
+# IDE
+.vs/
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Temporary
+*.tmp
+*.bak
