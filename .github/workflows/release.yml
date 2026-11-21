@@ -22,38 +22,8 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Read and increment version
-        shell: pwsh
-        run: |
-          $vf = Get-Content "version.txt"
-          $parts = $vf -split '\.'
-          $parts[3] = [int]$parts[3] + 1
-          $nv = $parts -join '.'
-          Set-Content -Path "version.txt" -Value $nv
-          echo "VERSION=$nv" >> $env:GITHUB_ENV
-
-      - name: Generate version.props
-        shell: pwsh
-        run: |
-          Set-Content -Path version.props -Value "<Project>"
-          Add-Content -Path version.props -Value "  <PropertyGroup>"
-          Add-Content -Path version.props -Value "    <Version>$env:VERSION</Version>"
-          Add-Content -Path version.props -Value "    <AssemblyVersion>$env:VERSION</AssemblyVersion>"
-          Add-Content -Path version.props -Value "    <FileVersion>$env:VERSION</FileVersion>"
-          Add-Content -Path version.props -Value "    <InformationalVersion>$env:VERSION</InformationalVersion>"
-          Add-Content -Path version.props -Value "  </PropertyGroup>"
-          Add-Content -Path version.props -Value "</Project>"
-
       - name: Build plugin
-        run: dotnet build src/BeastMasterHelper/BeastMasterHelper.csproj -c Release --nologo
-
-      - name: Strip PDBs from packaged zip
-        shell: pwsh
-        run: |
-          $zp = Join-Path (Resolve-Path 'src/BeastMasterHelper/bin/Release/net10.0-windows/BeastMasterHelperBST') 'latest.zip'
-          $at = [System.IO.Compression.ZipFile]::Open($zp, 'Update')
-          foreach ($e in $at.Entries) { if ($e.Name -like '*.pdb') { $e.Delete() } }
-          $at.Dispose()
+        run: dotnet build src/BeastMasterHelper/BeastMasterHelper.csproj -c Release --nologo -p:Version=0.10.5.12 -p:AssemblyVersion=0.10.5.12 -p:FileVersion=0.10.5.12 -p:InformationalVersion=0.10.5.12
 
       - name: Copy packaged zip to plugins folder
         shell: pwsh
@@ -61,27 +31,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path plugins/BeastMasterHelper
           Copy-Item "src/BeastMasterHelper/bin/Release/net10.0-windows/BeastMasterHelperBST/latest.zip" "plugins/BeastMasterHelper/BeastMasterHelper.zip" -Force
 
-      - name: Update repo.json with new version
-        shell: pwsh
-        run: |
-          $rj = Get-Content -Path repo.json -Raw | ConvertFrom-Json
-          foreach ($p in $rj) { if ($p.InternalName -eq 'BeastMasterHelperBST') { $p.AssemblyVersion = "$env:VERSION"; $p.DownloadLinkInstall = 'https://raw.githubusercontent.com/xMaboo/BSTHelper/main/plugins/BeastMasterHelper/BeastMasterHelper.zip'; $p.DownloadLinkUpdate = 'https://raw.githubusercontent.com/xMaboo/BSTHelper/main/plugins/BeastMasterHelper/BeastMasterHelper.zip'; $p.DownloadLinkTesting = 'https://raw.githubusercontent.com/xMaboo/BSTHelper/main/plugins/BeastMasterHelper/BeastMasterHelper.zip' } }
-          $rj | ConvertTo-Json -Depth 10 | Set-Content -Path repo.json -Encoding utf8
-
-      - name: Commit and push
-        shell: pwsh
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add version.txt version.props src/BeastMasterHelper/BeastMasterHelper.csproj plugins/BeastMasterHelper/BeastMasterHelper.zip repo.json
-          git commit -m "chore: auto-build v$env:VERSION [skip ci]" || echo "No changes to commit"
-          git push origin main || echo "Push failed"
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: BeastMasterHelper-v$env:VERSION
-          name: Beast Master Helper (BST) v$env:VERSION
+          tag_name: BeastMasterHelper-v0.10.5.12
+          name: Beast Master Helper (BST) v0.10.5.12
           files: plugins/BeastMasterHelper/BeastMasterHelper.zip
           draft: false
           prerelease: false
