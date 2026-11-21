@@ -45,10 +45,13 @@ jobs:
           Add-Content -Path version.props -Value "  </PropertyGroup>"
           Add-Content -Path version.props -Value "</Project>"
 
+      - name: .NET Info
+        shell: pwsh
+        run: dotnet --info
+
       - name: Build plugin
         shell: pwsh
-        run: |
-          dotnet build src/BeastMasterHelper/BeastMasterHelper.csproj -c Release -p:Version=$env:VERSION -p:AssemblyVersion=$env:VERSION --nologo -v quiet
+        run: dotnet build src/BeastMasterHelper/BeastMasterHelper.csproj -c Release -v:diag
 
       - name: Strip PDBs from packaged zip
         shell: pwsh
