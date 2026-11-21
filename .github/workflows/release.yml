@@ -17,5 +17,15 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Build
+      - name: Read and increment version
+        shell: pwsh
+        run: |
+          $vf = Get-Content "version.txt"
+          $parts = $vf -split '.'
+          $parts[3] = [int]$parts[3] + 1
+          $nv = $parts -join '.'
+          Set-Content -Path "version.txt" -Value $nv
+          echo "VERSION=$nv" >> $env:GITHUB_ENV
+      - name: Build plugin
+        shell: pwsh
         run: dotnet build src/BeastMasterHelper/BeastMasterHelper.csproj -c Release --nologo
