@@ -26,7 +26,7 @@ jobs:
         shell: pwsh
         run: |
           $vf = Get-Content "version.txt"
-          $parts = $vf -split '.'
+          $parts = $vf -split '\.'
           $parts[3] = [int]$parts[3] + 1
           $nv = $parts -join '.'
           Set-Content -Path "version.txt" -Value $nv
@@ -34,7 +34,7 @@ jobs:
 
       - name: Build plugin
         shell: pwsh
-        run: dotnet build src/BeastMasterHelper/BeastMasterHelper.csproj -c Release --nologo
+        run: dotnet build src/BeastMasterHelper/BeastMasterHelper.csproj -c Release --nologo -v:diag
 
       - name: Commit and push
         shell: pwsh
