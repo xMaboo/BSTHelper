@@ -1,4 +1,4 @@
-name: Build and Release BeastMasterHelper BST
+name: Build BeastMasterHelper BST
 
 on:
   push:
@@ -9,33 +9,13 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-
-      - name: Build plugin
+      - name: Build
         run: dotnet build src/BeastMasterHelper/BeastMasterHelper.csproj -c Release --nologo
-
-      - name: Copy packaged zip to plugins folder
-        run: |
-          mkdir -p plugins/BeastMasterHelper
-          cp src/BeastMasterHelper/bin/Release/net10.0-windows/BeastMasterHelperBST/latest.zip plugins/BeastMasterHelper/BeastMasterHelper.zip || true
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: BeastMasterHelper-v0.10.5.11
-          name: Beast Master Helper (BST) v0.10.5.11
-          files: plugins/BeastMasterHelper/BeastMasterHelper.zip
-          draft: false
-          prerelease: false
-          generate_release_notes: false
