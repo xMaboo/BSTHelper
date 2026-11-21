@@ -25,9 +25,9 @@
     "AcceptsFeedback": true,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "DownloadLinkInstall": "https://raw.githubusercontent.com/xMaboo/BeastmasterHelper/main/plugins/BeastMasterHelper/BeastMasterHelper.zip",
-    "DownloadLinkUpdate": "https://raw.githubusercontent.com/xMaboo/BeastmasterHelper/main/plugins/BeastMasterHelper/BeastMasterHelper.zip",
-    "DownloadLinkTesting": "https://raw.githubusercontent.com/xMaboo/BeastmasterHelper/main/plugins/BeastMasterHelper/BeastMasterHelper.zip",
+    "DownloadLinkInstall": "https://raw.githubusercontent.com/xMaboo/BSTHelper/main/plugins/BeastMasterHelper/BeastMasterHelper.zip",
+    "DownloadLinkUpdate": "https://raw.githubusercontent.com/xMaboo/BSTHelper/main/plugins/BeastMasterHelper/BeastMasterHelper.zip",
+    "DownloadLinkTesting": "https://raw.githubusercontent.com/xMaboo/BSTHelper/main/plugins/BeastMasterHelper/BeastMasterHelper.zip",
     "IconUrl": "https://raw.githubusercontent.com/xMaboo/BeastmasterHelper/main/plugins/BeastMasterHelper/icon.png"
   }
 ]
