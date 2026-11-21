@@ -25,25 +25,11 @@ jobs:
       - name: Build plugin
         run: dotnet build src/BeastMasterHelper/BeastMasterHelper.csproj -c Release --nologo -p:Version=0.10.5.12 -p:AssemblyVersion=0.10.5.12 -p:FileVersion=0.10.5.12 -p:InformationalVersion=0.10.5.12
 
-      - name: Strip PDBs from packaged zip
-        shell: bash
-        run: python3 -c "
-import zipfile, os
-zp = 'src/BeastMasterHelper/bin/Release/net10.0-windows/BeastMasterHelperBST/latest.zip'
-tmp = zp + '.tmp'
-with zipfile.ZipFile(zp, 'r') as zin:
-    with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
-        for item in zin.infolist():
-            if not item.filename.lower().endswith('.pdb'):
-                zout.writestr(item, zin.read(item.filename))
-os.replace(tmp, zp)
-"
-
       - name: Copy packaged zip to plugins folder
-        shell: bash
+        shell: pwsh
         run: |
-          mkdir -p plugins/BeastMasterHelper
-          cp "src/BeastMasterHelper/bin/Release/net10.0-windows/BeastMasterHelperBST/latest.zip" "plugins/BeastMasterHelper/BeastMasterHelper.zip"
+          New-Item -ItemType Directory -Force -Path plugins/BeastMasterHelper
+          Copy-Item "src/BeastMasterHelper/bin/Release/net10.0-windows/BeastMasterHelperBST/latest.zip" "plugins/BeastMasterHelper/BeastMasterHelper.zip" -Force
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
