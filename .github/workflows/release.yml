@@ -28,7 +28,7 @@ jobs:
       - name: Copy packaged zip to plugins folder
         run: |
           mkdir -p plugins/BeastMasterHelper
-          cp src/BeastMasterHelper/bin/Release/net10.0-windows/BeastMasterHelper/latest.zip plugins/BeastMasterHelper/BeastMasterHelper.zip || true
+          cp src/BeastMasterHelper/bin/Release/net10.0-windows/BeastMasterHelperBST/latest.zip plugins/BeastMasterHelper/BeastMasterHelper.zip || true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
