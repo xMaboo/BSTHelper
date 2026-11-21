@@ -47,7 +47,9 @@ jobs:
 
       - name: Build plugin
         shell: pwsh
-        run: dotnet build src/BeastMasterHelper/BeastMasterHelper.csproj -c Release --nologo -v quiet
+        run: |
+          dotnet restore src/BeastMasterHelper/BeastMasterHelper.csproj
+          dotnet build src/BeastMasterHelper/BeastMasterHelper.csproj -c Release --nologo -v detailed
 
       - name: Strip PDBs from packaged zip
         shell: pwsh
