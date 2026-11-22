@@ -945,12 +945,30 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 			}
 			else {
 				int cap = CrucibleBeastRank.BoardRankCap(board);
-				wanted = CrucibleBeastRank.LevelingCandidatesForCap(
-					Enumerable.Range(1, 50).Where(IsUnlockedFamiliar),
-					configuration.CrucibleBeastRankLearned,
-					configuration.CrucibleBeastRankFallback,
-					configuration.CrucibleBeastExpLearned,
-					cap)
+				wanted = Enumerable.Range(1, 50)
+					.Where(IsUnlockedFamiliar)
+					.Select(catalogueId => new {
+						CatalogueId = catalogueId,
+						Rank = CrucibleBeastRank.EffectiveRank(
+							configuration.CrucibleBeastRankLearned,
+							configuration.CrucibleBeastRankFallback,
+							catalogueId),
+						ExpPercent = configuration.CrucibleBeastExpLearned.TryGetValue(
+							CrucibleBeastRank.MonsterIdFor(catalogueId), out var exp) ? exp : (int?)null
+					})
+					.Where(c => {
+						var r = c.Rank;
+						// Unknown rank: include - we need to field it to read its rank
+						if(!r.HasValue) return true;
+						// Below cap: include
+						if(r.Value < cap) return true;
+						// At cap with no exp data or exp < 100%: include
+						if(r.Value == cap && (!c.ExpPercent.HasValue || c.ExpPercent.Value < 100)) return true;
+						// Otherwise exclude
+						return false;
+					})
+					.OrderBy(c => c.Rank ?? 0)
+					.ThenBy(c => c.CatalogueId)
 					.Take(num2)
 					.Select(c => c.CatalogueId)
 					.ToList();
