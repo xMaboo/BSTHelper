@@ -891,7 +891,7 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 
 		// Build the wanted list: beasts with known ranks under the cap (or at cap with exp not full),
 		// sorted by rank ascending so the lowest-ranked ones are chosen first.
-		var wanted = Enumerable.Range(1, 50)
+		var knownUnderCap = Enumerable.Range(1, 50)
 			.Where(IsUnlockedFamiliar)
 			.Select(catalogueId => new {
 				CatalogueId = catalogueId,
@@ -902,12 +902,12 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 				ExpPercent = configuration.CrucibleBeastExpLearned.TryGetValue(
 					CrucibleBeastRank.MonsterIdFor(catalogueId), out var exp) ? exp : (int?)null
 			})
-			.Where(c => c.Rank.HasValue) // Only beasts whose rank has been scanned
+			.Where(c => c.Rank.HasValue)
 			.Where(c => {
 				var r = c.Rank.Value;
-				if(r < cap) return true;           // Below cap: eligible
-				if(r == cap && (!c.ExpPercent.HasValue || c.ExpPercent.Value < 100)) return true; // At cap, exp not full: eligible
-				return false;                        // Above cap, or at cap with full exp: not eligible
+				if(r < cap) return true;
+				if(r == cap && (!c.ExpPercent.HasValue || c.ExpPercent.Value < 100)) return true;
+				return false;
 			})
 			.OrderBy(c => c.Rank)
 			.ThenBy(c => c.CatalogueId)
@@ -915,7 +915,38 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 			.Select(c => c.CatalogueId)
 			.ToList();
 
-		// If no known-rank beasts are under the cap, we can't safely field a team yet.
+			List<int> wanted;
+			// If no ranks have been learned at all, field every unlocked beast so their ranks get read.
+		if(configuration.CrucibleBeastRankLearned.Count == 0) {
+			wanted = Enumerable.Range(1, 50)
+				.Where(IsUnlockedFamiliar)
+				.OrderBy(id => id)
+				.Take(num2)
+				.ToList();
+		}
+		// If we have known under-cap beasts but need more to fill the team, add unknown-rank beasts.
+		else if(knownUnderCap.Count < num2) {
+			var unknown = Enumerable.Range(1, 50)
+				.Where(IsUnlockedFamiliar)
+				.Where(id => !knownUnderCap.Contains(id))
+				.Select(catalogueId => new {
+					CatalogueId = catalogueId,
+					Rank = CrucibleBeastRank.EffectiveRank(
+						configuration.CrucibleBeastRankLearned,
+						configuration.CrucibleBeastRankFallback,
+						catalogueId)
+				})
+				.Where(c => !c.Rank.HasValue) // Only unknown ranks
+				.OrderBy(c => c.CatalogueId)
+				.Take(num2 - knownUnderCap.Count)
+				.Select(c => c.CatalogueId);
+			wanted = knownUnderCap.Concat(unknown).ToList();
+		}
+		else {
+			wanted = knownUnderCap;
+		}
+
+		// If we genuinely have no eligible beasts (ranks known, none under cap, no unknowns), stop.
 		if(wanted.Count == 0) {
 			Stop($"Level Up Beasts: no eligible beasts under this board's rank cap of {cap}. Scan both bestiary pages first.");
 			return;
