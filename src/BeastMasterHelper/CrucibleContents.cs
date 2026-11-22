@@ -364,9 +364,17 @@ internal static class CrucibleContents {
 					}
 				}
 			}
-			LastUsePath=$"{item.Name} is in carried slot {i}, but no hotbar slot points at it";
-			return false;
+		LastUsePath=$"{item.Name} is in carried slot {i}, but no hotbar slot points at it";
+		break;
+	}
+
+		// Fallback: try clicking the item directly in the Crucible inventory list,
+		// for players who haven't bound carried slots to hotbar buttons.
+		if(CrucibleListClick.Row("XBMContentsMainHUD",item.Name,out string clickResult)) {
+		LastUsePath="used "+item.Name+" directly from Crucible inventory list: "+clickResult;
+		return true;
 		}
+
 		LastUsePath=item.Name+" is not in any of the ten carried slots";
 		return false;
 	}
