@@ -970,8 +970,10 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 					.Take(num2)
 					.Select(c => c.CatalogueId)
 					.ToList();
-				// If we still need more team members, fill with unknown-rank beasts.
-				if(knownUnderCap.Count < num2) {
+				// Only fill with unknown-rank beasts when no ranks have been learned at all.
+				// If ranks were learned during scan, unknown-rank beasts need a separate scan,
+				// not a guess - otherwise high-rank beasts with unread ranks could be fielded.
+				if(knownUnderCap.Count < num2 && configuration.CrucibleBeastRankLearned.Count == 0) {
 					var unknown = Enumerable.Range(1, 50)
 						.Where(IsUnlockedFamiliar)
 						.Where(id => !knownUnderCap.Contains(id))
