@@ -841,41 +841,6 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 		fillPage=0;
 		Advance(Step.LevelFill,$"Read {scanOk} familiar rank(s); choosing the lowest-ranked familiars.",120);
 	}
-	private void LevelClose() {
-		if(CrucibleBestiaryReader.IsOpen) {
-			if(!(DateTime.UtcNow<levelActionAt)) {
-				CrucibleBestiaryReader.Close();
-				levelActionAt=DateTime.UtcNow.AddSeconds(1.5);
-				if(++levelAttempts>6) {
-					Stop("Level Up Beasts: could not close the Master's Bestiary.");
-				}
-			}
-			return;
-		}
-		levelOpenedNotebook=false;
-		if(levelRecheck) {
-			if(DateTime.UtcNow<levelActionAt) {
-				return;
-			}
-			levelRecheck=false;
-			if(!levelRecheckDone) {
-				levelRecheckDone=true;
-				levelAttempts=0;
-				Advance(Step.LevelOpen,"Reopening the Master's Bestiary to confirm the team.",90);
-				return;
-			}
-		}
-		List<CrucibleFamiliar> roster=CruciblePetParty.Familiars();
-		HashSet<int> hashSet=LevelRegistered(roster);
-		if(hashSet.Count==0) {
-			Stop("Level Up Beasts: no familiar is registered after filling, so it stopped before challenging.");
-			return;
-		}
-		string text=string.Join(", ",from id in hashSet
-			orderby id
-			select $"{FamiliarName(id)} ({CrucibleBeastRank.EffectiveRank(configuration.CrucibleBeastRankLearned,configuration.CrucibleBeastRankFallback,id)})");
-		Advance(Step.Challenge,"Team set: "+text+". Waiting for Challenge This Board.");
-	}
 	private static bool PageShown(int page) {
 		List<int> list=(from c in CrucibleBestiaryReader.Cells()
 			select c.CatalogueId).ToList();
@@ -910,191 +875,195 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 			Stop("Level Up Beasts: the Master's Bestiary closed before the team was filled.");
 			return;
 		}
-		List<CrucibleFamiliar> list=CruciblePetParty.Familiars();
-		if(list.Count==0&&levelTeamOverride.Count==0&&CrucibleBestiaryReader.Cells().Count==0) {
-			Status="Waiting for the team list to load.";
+
+		List<CrucibleFamiliar> list = CruciblePetParty.Familiars();
+		if(list.Count==0 && levelTeamOverride.Count==0 && CrucibleBestiaryReader.Cells().Count==0) {
+			Status = "Waiting for the team list to load.";
+			return;
 		}
-		else {
-			if(!LevelToggleSettled(list)) {
-				return;
-			}
-			HashSet<int> registered=LevelRegistered(list);
-			int num=CrucibleBeastRank.BoardRankCap(board);
-			int num2=CrucibleBeastRank.BoardTeamSize(board);
-			List<int> wanted;
-			if(levelSuggested) {
-				IReadOnlyList<int> guidePool=CrucibleSuggestedTeam.EntryPool(configuration);
-				List<int> list2=new List<int>();
-				foreach(int item in guidePool.Where(IsUnlockedFamiliar)) {
-					list2.Add(item);
-				}
-				foreach(int item2 in guidePool.Where((int id) => !IsUnlockedFamiliar(id))) {
-					BeastKin kin=BeastmasterKinship.KinOf(item2);
-					int num3=((kin!=BeastKin.Unknown)?Enumerable.Range(1,50).FirstOrDefault((int n) => !list2.Contains(n)&&!guidePool.Contains(n)&&IsUnlockedFamiliar(n)&&BeastmasterKinship.KinOf(n)==kin):0);
-					if(num3==0) {
-						num3=(from n in Enumerable.Range(1,50)
-							where !list2.Contains(n)&&!guidePool.Contains(n)&&IsUnlockedFamiliar(n)
-							orderby CrucibleBeastRank.EffectiveRank(configuration.CrucibleBeastRankLearned,configuration.CrucibleBeastRankFallback,n).GetValueOrDefault() descending,n
-							select n).FirstOrDefault();
-					}
-					if(num3!=0) {
-						list2.Add(num3);
-					}
-				}
-				wanted=list2.Take(num2).ToList();
-			}
-			else {
-				int cap = CrucibleBeastRank.BoardRankCap(board);
-				// First: select beasts with known ranks under the cap (or at cap with exp not full).
-				// Known high-rank beasts are always excluded so they get deselected.
-				var knownUnderCap = Enumerable.Range(1, 50)
-					.Where(IsUnlockedFamiliar)
-					.Select(catalogueId => new {
-						CatalogueId = catalogueId,
-						Rank = CrucibleBeastRank.EffectiveRank(
-							configuration.CrucibleBeastRankLearned,
-							configuration.CrucibleBeastRankFallback,
-							catalogueId),
-						ExpPercent = configuration.CrucibleBeastExpLearned.TryGetValue(
-							CrucibleBeastRank.MonsterIdFor(catalogueId), out var exp) ? exp : (int?)null
-					})
-					.Where(c => {
-						var r = c.Rank;
-						if(!r.HasValue) return false; // Unknown: don't select yet
-						if(r.Value < cap) return true;
-						if(r.Value == cap && (!c.ExpPercent.HasValue || c.ExpPercent.Value < 100)) return true;
-						return false;
-					})
-					.OrderBy(c => c.Rank)
-					.ThenBy(c => c.CatalogueId)
-					.Take(num2)
-					.Select(c => c.CatalogueId)
-					.ToList();
-				// Only fill with unknown-rank beasts when no ranks have been learned at all.
-				// If ranks were learned during scan, unknown-rank beasts need a separate scan,
-				// not a guess - otherwise high-rank beasts with unread ranks could be fielded.
-				if(knownUnderCap.Count < num2 && configuration.CrucibleBeastRankLearned.Count == 0) {
-					var unknown = Enumerable.Range(1, 50)
-						.Where(IsUnlockedFamiliar)
-						.Where(id => !knownUnderCap.Contains(id))
-						.Select(catalogueId => new {
-							CatalogueId = catalogueId,
-							Rank = CrucibleBeastRank.EffectiveRank(
-								configuration.CrucibleBeastRankLearned,
-								configuration.CrucibleBeastRankFallback,
-								catalogueId)
-						})
-						.Where(c => !c.Rank.HasValue) // Only unknown ranks
-						.OrderBy(c => c.CatalogueId)
-						.Take(num2 - knownUnderCap.Count)
-						.Select(c => c.CatalogueId);
-					wanted = knownUnderCap.Concat(unknown).ToList();
-				} else {
-					wanted = knownUnderCap;
-				}
-			}
-			int changeId=registered.OrderBy((int id) => id).FirstOrDefault((int id) => !wanted.Contains(id));
-			bool flag=false;
-			if(levelSuggested&&!suggestedCleared) {
-				IEnumerable<int> second=from e in CrucibleBestiaryReader.Page()
-					where e.Selected
-					select e.CatalogueId;
-				changeId=(from id in registered.Union(second)
-					where !levelTeamOverride.TryGetValue(id,out var value2)||value2
-					orderby id
-					select id).FirstOrDefault();
-				if(changeId==0) {
-					if(PageSwitchPending()) {
-						return;
-					}
-					List<int> list3=(from c in CrucibleBestiaryReader.Cells()
-						select c.CatalogueId).ToList();
-					if(list3.Count==0) {
-						Status="Waiting for the Bestiary page to draw.";
-						return;
-					}
-					int num4=PageOf(list3);
-					suggestedPagesClear|=num4;
-					if(suggestedPagesClear==3) {
-						suggestedCleared=true;
-						levelActionAt=DateTime.UtcNow+Buffer;
-						Status="The team is empty; registering the guide's team.";
-					}
-					else if(!(DateTime.UtcNow<levelActionAt)) {
-						fillPage=((num4!=1)?1:2);
-						PressPage(fillPage);
-						Status=$"Checking page {fillPage} for anyone still selected.";
-					}
-					return;
-				}
-				if(CrucibleBestiaryReader.IsRegistered(changeId)==false) {
-					levelTeamOverride[changeId]=false;
-					return;
-				}
-			}
-			else if(changeId==0) {
-				if(wanted.Count==0) {
-					Stop($"Level Up Beasts: every familiar is at this board's rank cap of {num} with a full exp bar, so nothing was selected.");
-					return;
-				}
-				changeId=wanted.FirstOrDefault((int id) => !registered.Contains(id));
-				flag=true;
-			}
-			if(changeId==0) {
-				levelAttempts=0;
-				Advance(Step.LevelClose,"Team filled; closing the Master's Bestiary.",60);
-				return;
-			}
-			string text=FamiliarName(changeId);
-			if(DateTime.UtcNow<levelActionAt) {
-				return;
-			}
-			if(levelAttempts>=14) {
-				Stop("Level Up Beasts: could not settle the team.");
-			}
-			else if(!CrucibleBestiaryReader.Cells().Any((CrucibleBestiaryReader.GridCell c) => c.CatalogueId==changeId)) {
-				if(!PageSwitchPending()) {
-					int num5=(familiarPage.TryGetValue(changeId,out var value)?value:((changeId<=25)?1:2));
-					fillPage=((fillPage!=num5)?num5:((num5!=1)?1:2));
-					levelAttempts++;
-					PressPage(fillPage);
-					Status=$"Looking for {text} on page {fillPage}.";
-				}
-			}
-			else if(fillHovered!=changeId) {
-				if(fillHovered!=0) {
-					CrucibleBestiaryReader.Hover(fillHovered,leave: true);
-				}
-				CrucibleBestiaryReader.Hover(changeId);
-				fillHovered=changeId;
-				levelActionAt=DateTime.UtcNow+Buffer;
-				Status="Pointing at "+text+".";
-			}
-			else {
-				fillHovered=0;
-				if(!CrucibleBestiaryReader.Toggle(changeId)) {
-					Stop("Level Up Beasts: could not click "+text+" in the Master's Bestiary.");
-					return;
-				}
-				levelAttempts++;
-				levelPending=changeId;
-				levelPendingSelected=flag;
-				levelPendingCount=list.Count;
-				levelPendingUntil=DateTime.UtcNow.AddSeconds(6.0);
-				levelActionAt=DateTime.UtcNow+Buffer;
-				Status=(flag?"Adding":"Removing")+" "+text+".";
-			}
+
+		if(!LevelToggleSettled(list)) {
+			return;
 		}
+
+		int cap = CrucibleBeastRank.BoardRankCap(board);
+		int num2 = CrucibleBeastRank.BoardTeamSize(board);
+
+		// Build the wanted list: beasts with known ranks under the cap (or at cap with exp not full),
+		// sorted by rank ascending so the lowest-ranked ones are chosen first.
+		var wanted = Enumerable.Range(1, 50)
+			.Where(IsUnlockedFamiliar)
+			.Select(catalogueId => new {
+				CatalogueId = catalogueId,
+				Rank = CrucibleBeastRank.EffectiveRank(
+					configuration.CrucibleBeastRankLearned,
+					configuration.CrucibleBeastRankFallback,
+					catalogueId),
+				ExpPercent = configuration.CrucibleBeastExpLearned.TryGetValue(
+					CrucibleBeastRank.MonsterIdFor(catalogueId), out var exp) ? exp : (int?)null
+			})
+			.Where(c => c.Rank.HasValue) // Only beasts whose rank has been scanned
+			.Where(c => {
+				var r = c.Rank.Value;
+				if(r < cap) return true;           // Below cap: eligible
+				if(r == cap && (!c.ExpPercent.HasValue || c.ExpPercent.Value < 100)) return true; // At cap, exp not full: eligible
+				return false;                        // Above cap, or at cap with full exp: not eligible
+			})
+			.OrderBy(c => c.Rank)
+			.ThenBy(c => c.CatalogueId)
+			.Take(num2)
+			.Select(c => c.CatalogueId)
+			.ToList();
+
+		// If no known-rank beasts are under the cap, we can't safely field a team yet.
+		if(wanted.Count == 0) {
+			Stop($"Level Up Beasts: no eligible beasts under this board's rank cap of {cap}. Scan both bestiary pages first.");
+			return;
+		}
+
+		// Read what is actually selected in the bestiary grid (current page).
+		var page = CrucibleBestiaryReader.Page();
+		var currentlySelected = page.Where(e => e.Selected).Select(e => e.CatalogueId).ToHashSet();
+
+		// Determine what needs to change.
+		int toRemove = currentlySelected.FirstOrDefault(id => !wanted.Contains(id));
+		int toAdd = wanted.FirstOrDefault(id => !currentlySelected.Contains(id));
+
+		int changeId = 0;
+		bool flag = false; // false = remove, true = add
+
+		if(toRemove != 0) {
+			changeId = toRemove;
+			flag = false;
+		} else if(toAdd != 0) {
+			changeId = toAdd;
+			flag = true;
+		}
+
+		// Nothing left to change - team is filled correctly.
+		if(changeId == 0) {
+			levelAttempts = 0;
+			Advance(Step.LevelClose, "Team filled; closing the Master's Bestiary.", 60);
+			return;
+		}
+
+		string text = FamiliarName(changeId);
+
+		// Rate-limit toggles.
+		if(DateTime.UtcNow < levelActionAt) {
+			return;
+		}
+
+		if(levelAttempts >= 14) {
+			Stop("Level Up Beasts: could not settle the team.");
+			return;
+		}
+
+		// Make sure we're on the page that contains this beast.
+		if(!page.Any(e => e.CatalogueId == changeId)) {
+			if(!PageSwitchPending()) {
+				int targetPage = (changeId <= 25) ? 1 : 2;
+				PressPage(targetPage);
+				Status = $"Looking for {text} on page {targetPage}.";
+				return;
+			}
+			return;
+		}
+
+		// Hover the beast, then toggle it.
+		if(fillHovered != changeId) {
+			if(fillHovered != 0) {
+				CrucibleBestiaryReader.Hover(fillHovered, leave: true);
+			}
+			CrucibleBestiaryReader.Hover(changeId);
+			fillHovered = changeId;
+			levelActionAt = DateTime.UtcNow + Buffer;
+			Status = "Pointing at " + text + ".";
+			return;
+		}
+
+		fillHovered = 0;
+		if(!CrucibleBestiaryReader.Toggle(changeId)) {
+			Stop("Level Up Beasts: could not click " + text + " in the Master's Bestiary.");
+			return;
+		}
+		levelAttempts++;
+		levelTeamOverride[changeId] = flag;
+		levelPending = changeId;
+		levelPendingSelected = flag;
+		levelPendingCount = list.Count;
+		levelPendingUntil = DateTime.UtcNow.AddSeconds(6.0);
+		levelActionAt = DateTime.UtcNow + Buffer;
+		Status = (flag ? "Adding" : "Removing") + " " + text + ".";
 	}
+
+	private void LevelClose() {
+		if(CrucibleBestiaryReader.IsOpen) {
+			if(!(DateTime.UtcNow < levelActionAt)) {
+				CrucibleBestiaryReader.Close();
+				levelActionAt = DateTime.UtcNow.AddSeconds(1.5);
+				if(++levelAttempts > 6) {
+					Stop("Level Up Beasts: could not close the Master's Bestiary.");
+				}
+			}
+			return;
+		}
+
+		levelOpenedNotebook = false;
+
+		if(levelRecheck) {
+			if(DateTime.UtcNow < levelActionAt) {
+				return;
+			}
+			levelRecheck = false;
+			if(!levelRecheckDone) {
+				levelRecheckDone = true;
+				levelAttempts = 0;
+				Advance(Step.LevelOpen, "Reopening the Master's Bestiary to confirm the team.", 90);
+				return;
+			}
+		}
+
+		// Read the final team from the bestiary grid's last-known selection,
+		// falling back to the team roster if the grid is closed.
+		var finalTeam = new HashSet<int>();
+		if(levelTeamOverride.Count > 0) {
+			foreach(var (id, selected) in levelTeamOverride) {
+				if(selected) {
+					finalTeam.Add(id);
+				}
+			}
+		}
+		if(finalTeam.Count == 0) {
+			var roster = CruciblePetParty.Familiars();
+			foreach(var f in roster) {
+				if(f.Slot < 3) {
+					finalTeam.Add(f.CatalogueId);
+				}
+			}
+		}
+
+		if(finalTeam.Count == 0) {
+			Stop("Level Up Beasts: no familiar is registered after filling, so it stopped before challenging.");
+			return;
+		}
+
+		string text = string.Join(", ", from id in finalTeam.OrderBy(id => id)
+			select $"{FamiliarName(id)} ({CrucibleBeastRank.EffectiveRank(configuration.CrucibleBeastRankLearned, configuration.CrucibleBeastRankFallback, id)})");
+
+		Advance(Step.Challenge, "Team set: " + text + ". Waiting for Challenge This Board.");
+	}
+
 	private static IGameObject? FindLauda() {
-		return DalamudApi.ObjectTable.FirstOrDefault((IGameObject a) => a.IsTargetable&&a.Name.TextValue.Equals("Lauda",StringComparison.OrdinalIgnoreCase)&&Vector3.Distance(a.Position,LaudaPosition)<15f);
+		return DalamudApi.ObjectTable.FirstOrDefault((IGameObject a) => a.IsTargetable && a.Name.TextValue.Equals("Lauda", StringComparison.OrdinalIgnoreCase) && Vector3.Distance(a.Position, LaudaPosition) < 15f);
 	}
+
 	public void Dispose() {
 		Preparation.Dispose();
 		Diagnostics.Dispose();
 		Recorder.Dispose();
 		CrucibleFeedFeedback.Shared.Dispose();
-		DalamudApi.Framework.Update-=Update;
+		DalamudApi.Framework.Update -= Update;
 		Stop();
 	}
 }
