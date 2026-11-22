@@ -23,7 +23,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Build plugin
-        run: dotnet build src/BeastMasterHelper/BeastMasterHelper.csproj -c Release --nologo -p:Version=0.10.5.17 -p:AssemblyVersion=0.10.5.17 -p:FileVersion=0.10.5.17 -p:InformationalVersion=0.10.5.17
+        run: dotnet build src/BeastMasterHelper/BeastMasterHelper.csproj -c Release --nologo -p:Version=0.10.5.18 -p:AssemblyVersion=0.10.5.18 -p:FileVersion=0.10.5.18 -p:InformationalVersion=0.10.5.18
 
       - name: Copy packaged zip to plugins folder
         shell: pwsh
@@ -34,8 +34,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: BeastMasterHelper-v0.10.5.17
-          name: Beast Master Helper (BST) v0.10.5.17
+          tag_name: BeastMasterHelper-v0.10.5.18
+          name: Beast Master Helper (BST) v0.10.5.18
           files: plugins/BeastMasterHelper/BeastMasterHelper.zip
           draft: false
           prerelease: false
