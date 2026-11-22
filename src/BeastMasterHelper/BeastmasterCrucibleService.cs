@@ -890,20 +890,31 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 		int num2 = CrucibleBeastRank.BoardTeamSize(board);
 
 		// Build the wanted list from known ranks, lowest first, under the board's cap.
-		List<int> wanted = new List<int>();
-		foreach(int catalogueId in Enumerable.Range(1, 50).Where(IsUnlockedFamiliar)) {
-			int? rank = CrucibleBeastRank.EffectiveRank(
-				configuration.CrucibleBeastRankLearned,
-				configuration.CrucibleBeastRankFallback,
-				catalogueId);
-			if(!rank.HasValue) continue;
-			if(rank.Value < cap) wanted.Add(catalogueId);
-			else if(rank.Value == cap) {
-				if(!configuration.CrucibleBeastExpLearned.TryGetValue(CrucibleBeastRank.MonsterIdFor(catalogueId), out var exp)) wanted.Add(catalogueId);
-				else if(exp < 100) wanted.Add(catalogueId);
-			}
+		// If no ranks have been learned yet, field every unlocked beast so their ranks get read.
+		List<int> wanted;
+		if(configuration.CrucibleBeastRankLearned.Count == 0) {
+			wanted = Enumerable.Range(1, 50)
+				.Where(IsUnlockedFamiliar)
+				.OrderBy(id => id)
+				.Take(num2)
+				.ToList();
 		}
-		wanted = wanted.OrderBy(id => CrucibleBeastRank.EffectiveRank(configuration.CrucibleBeastRankLearned, configuration.CrucibleBeastRankFallback, id) ?? 999).ThenBy(id => id).Take(num2).ToList();
+		else {
+			wanted = new List<int>();
+			foreach(int catalogueId in Enumerable.Range(1, 50).Where(IsUnlockedFamiliar)) {
+				int? rank = CrucibleBeastRank.EffectiveRank(
+					configuration.CrucibleBeastRankLearned,
+					configuration.CrucibleBeastRankFallback,
+					catalogueId);
+				if(!rank.HasValue) continue;
+				if(rank.Value < cap) wanted.Add(catalogueId);
+				else if(rank.Value == cap) {
+					if(!configuration.CrucibleBeastExpLearned.TryGetValue(CrucibleBeastRank.MonsterIdFor(catalogueId), out var exp)) wanted.Add(catalogueId);
+					else if(exp < 100) wanted.Add(catalogueId);
+				}
+			}
+			wanted = wanted.OrderBy(id => CrucibleBeastRank.EffectiveRank(configuration.CrucibleBeastRankLearned, configuration.CrucibleBeastRankFallback, id) ?? 999).ThenBy(id => id).Take(num2).ToList();
+		}
 
 		if(wanted.Count == 0) {
 			Stop($"Level Up Beasts: no eligible beasts under this board's rank cap of {cap}. Scan both bestiary pages first.");
