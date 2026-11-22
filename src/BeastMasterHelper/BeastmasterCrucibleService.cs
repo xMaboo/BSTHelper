@@ -369,8 +369,12 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 				DifficultyTick();
 				break;
 				case Step.Team:
-				if(CrucibleUi.Has("Challenge This Board")) {
-					if(configuration.CrucibleSuggestedTeamMode&&CrucibleSuggestedTeam.EntryPool(configuration).Count>0) {
+					if(CrucibleUi.Has("Challenge This Board")) {
+						if(configuration.CrucibleManuallyChooseFamiliars) {
+							Status="Manually select your familiars, then click Challenge This Board.";
+							return;
+						}
+						if(configuration.CrucibleSuggestedTeamMode&&CrucibleSuggestedTeam.EntryPool(configuration).Count>0) {
 						levelSuggested=true;
 						levelAttempts=0;
 						levelPending=0;
@@ -451,6 +455,13 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 							Advance(Step.Difficulty,"Difficulty reads "+CrucibleDifficulty.NameOf(valueOrDefault)+"; setting it again.",40);
 							break;
 						}
+					}
+					if(configuration.CrucibleManuallyChooseFamiliars) {
+						// User clicks Challenge This Board themselves; detect when they have
+						if(!CrucibleUi.Has("Challenge This Board")) {
+							Advance(Step.Commence,"User challenged the board; waiting for duty confirmation.");
+						}
+						break;
 					}
 					if(CrucibleUi.Click("Challenge This Board")) {
 						Advance(Step.Commence,"Waiting for duty confirmation.");

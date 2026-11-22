@@ -25,7 +25,8 @@ public sealed class PluginUI {
 		None,
 		Recommended,
 		LevelUp,
-		Suggested
+		Suggested,
+		Manual
 	}
 	private sealed record QuickToggle(string Key,string Label,string DefaultPanel,Func<bool> Get,Func<string> Tip,System.Action Click,Func<bool>? Enabled=null);
 	private float arenaNudgeStep=1f;
@@ -1002,6 +1003,11 @@ public sealed class PluginUI {
 			ImGui.TextWrapped(CrucibleBestiaryReader.Describe(configuration.CrucibleBeastRankLearned,configuration.CrucibleBeastRankFallback,num-1));
 			DrawCrucibleBeastRankFallback();
 		}
+		bool v21=configuration.CrucibleManuallyChooseFamiliars;
+		if(ImGui.Checkbox("Manually Choose Familiars",ref v21)) {
+			SelectCrucibleMode(v21?CrucibleMode.Manual:CrucibleMode.None);
+		}
+		SettingTip("Open the board and go to Team Composition as normal, but select your familiars by hand and click Challenge This Board yourself. The plugin will not auto-select familiars or auto-click Challenge. Once you enter the Crucible, normal AI pathing and combat takes over.");
 		int v15=configuration.CruciblePlayerBuyLimit;
 		ImGui.SetNextItemWidth(200f);
 		if(ImGui.SliderInt("Player beast gear per shop",ref v15,1,2)) {
@@ -1483,6 +1489,7 @@ public sealed class PluginUI {
 		configuration.CrucibleRecommendedTeam=mode==CrucibleMode.Recommended;
 		configuration.CrucibleLevelUpBeasts=mode==CrucibleMode.LevelUp;
 		configuration.CrucibleSuggestedTeamMode=mode==CrucibleMode.Suggested;
+		configuration.CrucibleManuallyChooseFamiliars=mode==CrucibleMode.Manual;
 		configuration.Save();
 	}
 	private static bool ReactionHelperLoaded() {
@@ -1786,8 +1793,11 @@ public sealed class PluginUI {
 		if(configuration.CrucibleLevelUpBeasts) {
 			list3.Add("leveling");
 		}
+		if(configuration.CrucibleManuallyChooseFamiliars) {
+			list3.Add("manual");
+		}
 		Row("Team mode",(list3.Count>0)?string.Join(" + ",list3):"none");
-		Row("Recommended / suggested / leveling",$"{OnOff(configuration.CrucibleRecommendedTeam)} / {OnOff(configuration.CrucibleSuggestedTeamMode)} / {OnOff(configuration.CrucibleLevelUpBeasts)}");
+		Row("Recommended / suggested / leveling / manual","{OnOff(configuration.CrucibleRecommendedTeam)} / {OnOff(configuration.CrucibleSuggestedTeamMode)} / {OnOff(configuration.CrucibleLevelUpBeasts)} / {OnOff(configuration.CrucibleManuallyChooseFamiliars)}");
 		Section("BossMod");
 		Row("Answering",YesNo(bossMod.IsInstalled));
 		Row("In Crucible fight",YesNo(bossMod.InCrucibleEncounter));

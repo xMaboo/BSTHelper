@@ -88,6 +88,7 @@ public sealed class BeastmasterConfiguration : IPluginConfiguration {
 	public HashSet<string> CrucibleReactionHelperFights { get; set; }=new HashSet<string>();
 	public bool CrucibleLoopSelectedBoard { get; set; }
 	public bool CrucibleLevelUpBeasts { get; set; }
+	public bool CrucibleManuallyChooseFamiliars { get; set; }
 	public int CrucibleLevelRescanEvery { get; set; }=10;
 	public int CrucibleGridBufferMs { get; set; }=50;
 	public int CrucibleLevelRunsSinceScan { get; set; }
