@@ -945,7 +945,9 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 			}
 			else {
 				int cap = CrucibleBeastRank.BoardRankCap(board);
-				wanted = Enumerable.Range(1, 50)
+				// First: select beasts with known ranks under the cap (or at cap with exp not full).
+				// Known high-rank beasts are always excluded so they get deselected.
+				var knownUnderCap = Enumerable.Range(1, 50)
 					.Where(IsUnlockedFamiliar)
 					.Select(catalogueId => new {
 						CatalogueId = catalogueId,
@@ -958,20 +960,36 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 					})
 					.Where(c => {
 						var r = c.Rank;
-						// Unknown rank: include - we need to field it to read its rank
-						if(!r.HasValue) return true;
-						// Below cap: include
+						if(!r.HasValue) return false; // Unknown: don't select yet
 						if(r.Value < cap) return true;
-						// At cap with no exp data or exp < 100%: include
 						if(r.Value == cap && (!c.ExpPercent.HasValue || c.ExpPercent.Value < 100)) return true;
-						// Otherwise exclude
 						return false;
 					})
-					.OrderBy(c => c.Rank ?? 0)
+					.OrderBy(c => c.Rank)
 					.ThenBy(c => c.CatalogueId)
 					.Take(num2)
 					.Select(c => c.CatalogueId)
 					.ToList();
+				// If we still need more team members, fill with unknown-rank beasts.
+				if(knownUnderCap.Count < num2) {
+					var unknown = Enumerable.Range(1, 50)
+						.Where(IsUnlockedFamiliar)
+						.Where(id => !knownUnderCap.Contains(id))
+						.Select(catalogueId => new {
+							CatalogueId = catalogueId,
+							Rank = CrucibleBeastRank.EffectiveRank(
+								configuration.CrucibleBeastRankLearned,
+								configuration.CrucibleBeastRankFallback,
+								catalogueId)
+						})
+						.Where(c => !c.Rank.HasValue) // Only unknown ranks
+						.OrderBy(c => c.CatalogueId)
+						.Take(num2 - knownUnderCap.Count)
+						.Select(c => c.CatalogueId);
+					wanted = knownUnderCap.Concat(unknown).ToList();
+				} else {
+					wanted = knownUnderCap;
+				}
 			}
 			int changeId=registered.OrderBy((int id) => id).FirstOrDefault((int id) => !wanted.Contains(id));
 			bool flag=false;
