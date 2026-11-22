@@ -29,8 +29,10 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 		LevelClear,
 		LevelOpen,
 		LevelScan,
-		LevelClose,
-		LevelFill,
+		LevelCloseBestiary,
+		LevelOpenPetParty,
+		LevelFillPetParty,
+		LevelClosePetParty,
 		Prepare
 	}
 	private readonly BeastmasterNavigationService navigation;
@@ -230,14 +232,18 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 		case Step.Prepare:
 		return 700;
 		case Step.LevelScan:
-		return 0;
-		case Step.LevelFill:
-		return 0;
+			return 0;
+		case Step.LevelCloseBestiary:
+			return 500;
+		case Step.LevelOpenPetParty:
+			return 500;
+		case Step.LevelFillPetParty:
+			return 0;
 		case Step.VerifyTeam:
 		case Step.LevelClear:
 		case Step.LevelOpen:
-		case Step.LevelClose:
-		return 500;
+		case Step.LevelClosePetParty:
+			return 500;
 		default:
 		return 1000;
 		}
@@ -368,7 +374,7 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 						levelSuggested=true;
 						levelAttempts=0;
 						levelPending=0;
-						Advance(Step.LevelClear,"Suggested Team Mode: setting the guide's entry team.",90);
+						Advance(Step.LevelOpenPetParty,"Suggested Team Mode: setting the guide's entry team.",90);
 					}
 					else if(configuration.CrucibleLevelUpBeasts&&LevelTeamStillGood()) {
 						configuration.CrucibleLevelRunsSinceScan++;
@@ -414,12 +420,18 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 				case Step.LevelScan:
 				LevelScan();
 				break;
-				case Step.LevelClose:
-				LevelClose();
-				break;
-				case Step.LevelFill:
-				LevelFill();
-				break;
+				case Step.LevelCloseBestiary:
+					LevelCloseBestiary();
+					break;
+				case Step.LevelOpenPetParty:
+					LevelOpenPetParty();
+					break;
+				case Step.LevelFillPetParty:
+					LevelFillPetParty();
+					break;
+				case Step.LevelClosePetParty:
+					LevelClosePetParty();
+					break;
 				case Step.ApplyPreset:
 				if(CrucibleContents.PresetPreviewWaiting) {
 					Status=(CrucibleContents.ApplyPresetTeam()?"Applied the recommended team; waiting for the preview to close.":"Waiting for Apply in the recommended-team preview.");
@@ -543,7 +555,7 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 			levelPending=0;
 			levelRecheck=true;
 			levelAttempts=0;
-			Advance(Step.LevelClose,"Closing the Master's Bestiary to refresh the team list.",60);
+			Advance(Step.LevelClosePetParty,"Closing the Master's Bestiary to refresh the team list.",60);
 			return false;
 		}
 		Status="Waiting for the team window to show the change.";
@@ -609,7 +621,7 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 				suggestedCleared=false;
 				suggestedPagesClear=0;
 				pageWaitTarget=0;
-				Advance(Step.LevelFill,"Clearing the team before registering the guide's entry team.",120);
+				Advance(Step.LevelOpenPetParty,"Clearing the team before registering the guide's entry team.",120);
 				return;
 			}
 			if(levelRecheckDone) {
@@ -617,7 +629,7 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 				levelPending=0;
 				levelActionAt=DateTime.MinValue;
 				fillPage=0;
-				Advance(Step.LevelFill,"Re-checking the team after the refresh.",120);
+				Advance(Step.LevelOpenPetParty,"Re-checking the team after the refresh.",120);
 				return;
 			}
 			scanIds=new List<int>();
@@ -839,7 +851,11 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 		levelPending=0;
 		levelActionAt=DateTime.MinValue;
 		fillPage=0;
-		Advance(Step.LevelFill,$"Read {scanOk} familiar rank(s); choosing the lowest-ranked familiars.",120);
+		// Close the bestiary first, then open Pet Party to register the team
+		if(CrucibleBestiaryReader.IsOpen) {
+			CrucibleBestiaryReader.Close();
+		}
+		Advance(Step.LevelCloseBestiary,$"Read {scanOk} familiar rank(s); choosing the lowest-ranked familiars.",120);
 	}
 	private static bool PageShown(int page) {
 		List<int> list=(from c in CrucibleBestiaryReader.Cells()
@@ -870,27 +886,53 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 		pageWaitTarget=page;
 		pageWaitUntil=DateTime.UtcNow.AddMilliseconds(1500.0);
 	}
-	private void LevelFill() {
-		if(!CrucibleBestiaryReader.IsOpen) {
-			Stop("Level Up Beasts: the Master's Bestiary closed before the team was filled.");
+	private void LevelCloseBestiary() {
+		if(CrucibleBestiaryReader.IsOpen) {
+			if(!(DateTime.UtcNow < levelActionAt)) {
+				CrucibleBestiaryReader.Close();
+				levelActionAt = DateTime.UtcNow.AddSeconds(1.5);
+				if(++levelAttempts > 6) {
+					Stop("Level Up Beasts: could not close the Master's Bestiary.");
+				}
+			}
 			return;
 		}
+		levelOpenedNotebook = false;
+		levelAttempts = 0;
+		Advance(Step.LevelOpenPetParty, "Opening the team window.", 90);
+	}
 
-		List<CrucibleFamiliar> list = CruciblePetParty.Familiars();
-		if(list.Count==0 && levelTeamOverride.Count==0 && CrucibleBestiaryReader.Cells().Count==0) {
-			Status = "Waiting for the team list to load.";
+	private void LevelOpenPetParty() {
+		if(CruciblePetParty.IsOpen) {
+			levelAttempts = 0;
+			Advance(Step.LevelFillPetParty, "Registering the lowest-ranked familiars.", 120);
 			return;
 		}
+		if(DateTime.UtcNow < levelActionAt) return;
+		if(++levelAttempts > 6) {
+			Stop("Level Up Beasts: the team window did not open.");
+			return;
+		}
+		// Try to open the Pet Party window from the board layout
+		if(CrucibleUi.ClickIn("XBMContentsMainHUD", "Team Composition")) {
+			levelActionAt = DateTime.UtcNow.AddSeconds(2.0);
+			Status = "Opening the team window.";
+		} else {
+			Status = "Waiting for the team window to open.";
+		}
+	}
 
-		if(!LevelToggleSettled(list)) {
+	private void LevelFillPetParty() {
+		if(!CruciblePetParty.IsOpen) {
+			Status = "Waiting for the team window to open.";
 			return;
 		}
 
 		int cap = CrucibleBeastRank.BoardRankCap(board);
 		int num2 = CrucibleBeastRank.BoardTeamSize(board);
 
-		// Build the wanted list from known ranks, lowest first, under the board's cap.
-		// If no ranks have been learned yet, field every unlocked beast so their ranks get read.
+		// Build wanted list from known ranks, lowest first, under the board's cap.
+		// If no ranks learned yet, field every unlocked beast so ranks get read.
 		List<int> wanted;
 		if(configuration.CrucibleBeastRankLearned.Count == 0) {
 			wanted = Enumerable.Range(1, 50)
@@ -898,8 +940,7 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 				.OrderBy(id => id)
 				.Take(num2)
 				.ToList();
-		}
-		else {
+		} else {
 			wanted = new List<int>();
 			foreach(int catalogueId in Enumerable.Range(1, 50).Where(IsUnlockedFamiliar)) {
 				int? rank = CrucibleBeastRank.EffectiveRank(
@@ -921,30 +962,24 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 			return;
 		}
 
-		// Read what is actually selected in the bestiary grid on the current page.
-		var page = CrucibleBestiaryReader.Page();
-		var currentlySelected = page.Where(e => e.Selected).Select(e => e.CatalogueId).ToHashSet();
-
-		// Determine what needs to change: remove selected-not-wanted, add wanted-not-selected.
-		int toRemove = currentlySelected.FirstOrDefault(id => !wanted.Contains(id));
-		int toAdd = wanted.FirstOrDefault(id => !currentlySelected.Contains(id));
-
-		int changeId = 0;
-		bool flag = false; // false = remove, true = add
-
-		if(toRemove != 0) { changeId = toRemove; flag = false; }
-		else if(toAdd != 0) { changeId = toAdd; flag = true; }
-
-		// Nothing left to change - team is filled correctly.
-		if(changeId == 0) {
-			levelTeamOverride.Clear();
-			foreach(int id in wanted) levelTeamOverride[id] = true;
-			levelAttempts = 0;
-			Advance(Step.LevelClose, "Team filled; closing the Master's Bestiary.", 60);
+		// Read current team from Pet Party roster
+		var roster = CruciblePetParty.Familiars();
+		if(roster.Count == 0) {
+			Status = "Waiting for the team list to load.";
 			return;
 		}
 
-		string text = FamiliarName(changeId);
+		var registeredIds = roster.Where(f => f.Slot < 3).Select(f => f.CatalogueId).ToHashSet();
+
+		// Find the first wanted beast not yet registered
+		int toAdd = wanted.FirstOrDefault(id => !registeredIds.Contains(id));
+
+		if(toAdd == 0) {
+			// All wanted beasts are registered - done
+			levelAttempts = 0;
+			Advance(Step.LevelClosePetParty, "Team filled; closing the team window.", 60);
+			return;
+		}
 
 		if(DateTime.UtcNow < levelActionAt) return;
 
@@ -953,49 +988,33 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 			return;
 		}
 
-		// Switch to the page that contains this beast if needed.
-		if(!page.Any(e => e.CatalogueId == changeId)) {
-			if(!PageSwitchPending()) {
-				int targetPage = (changeId <= 25) ? 1 : 2;
-				PressPage(targetPage);
-				Status = $"Looking for {text} on page {targetPage}.";
-				return;
-			}
+		// Register the beast via Pet Party window
+		var familiar = roster.FirstOrDefault(f => f.CatalogueId == toAdd);
+		if(familiar == null) {
+			Stop($"Level Up Beasts: could not find {FamiliarName(toAdd)} in the team window.");
 			return;
 		}
 
-		// Hover the beast, then toggle it.
-		if(fillHovered != changeId) {
-			if(fillHovered != 0) CrucibleBestiaryReader.Hover(fillHovered, leave: true);
-			CrucibleBestiaryReader.Hover(changeId);
-			fillHovered = changeId;
-			levelActionAt = DateTime.UtcNow + Buffer;
-			Status = "Pointing at " + text + ".";
+		string text = FamiliarName(toAdd);
+		if(!CruciblePetParty.GiveTo(familiar, out string result)) {
+			Stop("Level Up Beasts: could not register " + text + " in the team window: " + result);
 			return;
 		}
 
-		fillHovered = 0;
-		if(!CrucibleBestiaryReader.Toggle(changeId)) {
-			Stop("Level Up Beasts: could not click " + text + " in the Master's Bestiary.");
-			return;
-		}
 		levelAttempts++;
-		levelTeamOverride[changeId] = flag;
-		levelPending = changeId;
-		levelPendingSelected = flag;
-		levelPendingCount = list.Count;
-		levelPendingUntil = DateTime.UtcNow.AddSeconds(6.0);
+		levelTeamOverride[toAdd] = true;
 		levelActionAt = DateTime.UtcNow + Buffer;
-		Status = (flag ? "Adding" : "Removing") + " " + text + ".";
+		Status = "Adding " + text + " to team.";
 	}
 
-	private void LevelClose() {
-		if(CrucibleBestiaryReader.IsOpen) {
+	private void LevelClosePetParty() {
+		if(CruciblePetParty.IsOpen) {
 			if(!(DateTime.UtcNow < levelActionAt)) {
-				CrucibleBestiaryReader.Close();
+				// Close the Pet Party window by clicking away or using dismiss
+				CrucibleContents.Dismiss("XBMPetParty", out string _);
 				levelActionAt = DateTime.UtcNow.AddSeconds(1.5);
 				if(++levelAttempts > 6) {
-					Stop("Level Up Beasts: could not close the Master's Bestiary.");
+					Stop("Level Up Beasts: could not close the team window.");
 				}
 			}
 			return;
@@ -1003,24 +1022,13 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 
 		levelOpenedNotebook = false;
 
-		if(levelRecheck) {
-			if(DateTime.UtcNow < levelActionAt) return;
-			levelRecheck = false;
-			if(!levelRecheckDone) {
-				levelRecheckDone = true;
-				levelAttempts = 0;
-				Advance(Step.LevelOpen, "Reopening the Master's Bestiary to confirm the team.", 90);
-				return;
-			}
-		}
-
-		// Use levelTeamOverride as the source of truth (tracks every toggle made during fill).
+		// Build final team from levelTeamOverride
 		var finalTeam = new HashSet<int>();
 		foreach(var (id, selected) in levelTeamOverride) {
 			if(selected) finalTeam.Add(id);
 		}
 
-		// Fallback: read from the team composition roster.
+		// Fallback: read from the team composition roster
 		if(finalTeam.Count == 0) {
 			var roster = CruciblePetParty.Familiars();
 			foreach(var f in roster) {
@@ -1038,6 +1046,7 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 
 		Advance(Step.Challenge, "Team set: " + text + ". Waiting for Challenge This Board.");
 	}
+
 
 
 	private static IGameObject? FindLauda() {
