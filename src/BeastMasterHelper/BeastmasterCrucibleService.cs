@@ -944,27 +944,16 @@ public sealed class BeastmasterCrucibleService : IDisposable {
 				wanted=list2.Take(num2).ToList();
 			}
 			else {
-				List<(int catalogueId, int rank)> candidates = new List<(int, int)>();
-				for(int catalogueId = 1; catalogueId <= 50; catalogueId++) {
-					if(!IsUnlockedFamiliar(catalogueId)) continue;
-					int? rank = CrucibleBeastRank.EffectiveRank(
-						configuration.CrucibleBeastRankLearned,
-						configuration.CrucibleBeastRankFallback,
-						catalogueId);
-					candidates.Add((catalogueId, rank ?? 1));
-				}
-				wanted = candidates
-					.OrderBy(c => c.rank)
-					.ThenBy(c => c.catalogueId)
+				int cap = CrucibleBeastRank.BoardRankCap(board);
+				wanted = CrucibleBeastRank.LevelingCandidatesForCap(
+					Enumerable.Range(1, 50).Where(IsUnlockedFamiliar),
+					configuration.CrucibleBeastRankLearned,
+					configuration.CrucibleBeastRankFallback,
+					configuration.CrucibleBeastExpLearned,
+					cap)
 					.Take(num2)
-					.Select(c => c.catalogueId)
+					.Select(c => c.CatalogueId)
 					.ToList();
-			}
-			if(!levelSuggested&&wanted.Count<num2) {
-				IEnumerable<int> collection = Enumerable.Range(1, 50)
-					.Where(id => !wanted.Contains(id) && IsUnlockedFamiliar(id))
-					.Take(num2 - wanted.Count);
-				wanted.AddRange(collection);
 			}
 			int changeId=registered.OrderBy((int id) => id).FirstOrDefault((int id) => !wanted.Contains(id));
 			bool flag=false;
